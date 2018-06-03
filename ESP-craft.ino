@@ -19,6 +19,9 @@ Simple WiFi Controlled plane based on esp-01
 #include "auth.hpp"
 #include "web.hpp"
 
+#include "mixer.hpp"
+#include "pinout.hpp"
+
 ADC_MODE(ADC_VCC); // test battery
 
 AsyncWebServer server(WEB_PORT);
@@ -140,6 +143,7 @@ void loop() {
 				Serial.println("reset all config...");
 				config.Reset();
 				mixer.Reset();
+				pwmout.Reset();
 			}
 		} else {
 			count = 0;
@@ -179,8 +183,7 @@ void setupServer(AsyncWebServer& server) {
 		res->printf("\"ap\":\"%s\",", config.AP_ssid.c_str());
 		res->printf("\"ch\":%d,", config.AP_chan);
 		res->printf("\"hide\":%d,", config.AP_hidden);
-		res->printf("\"sta\":\"%s\",", config.STA_ssid.c_str());
-		res->printf("\"pwr\":%d}", config.PWR_SLEEP);
+		res->printf("\"sta\":\"%s\"}", config.STA_ssid.c_str());
 
 		res->end();
 		req->send(res);
@@ -268,18 +271,7 @@ void setupServer(AsyncWebServer& server) {
 
 	server.on("/status", HTTP_GET, [](AsyncWebServerRequest *req){
 		AsyncResponseStream *res = req->beginResponseStream("text/json", RES_BUF_SIZE);
-		unsigned count = sch.Count();
-		const mode* m = sch.GetOutput();
-		int16_t mid = sch.GetModeId();
-		res->printf("{\"mid\":%d,\"md\":[%d,%d],\"count\":%u,", mid, m->on, m->off, count);
-
-		const log_t* data = &newest_log;
-		res->printf("\"sen\":[%d,%d,%d],", data->temp, data->hum, data->press);
-
-
-		res->printf("\"pin\":%u,", pin.GetOutput());
-		res->printf("\"log\":%u,", logs.Count());
-		res->printf("\"heap\":%u}", ESP.getFreeHeap());
+		res->printf("{\"heap\":%u}", ESP.getFreeHeap());
 
 		res->end();
 		req->send(res);
@@ -288,17 +280,15 @@ void setupServer(AsyncWebServer& server) {
 	server.on("/mix/ls", HTTP_GET, [](AsyncWebServerRequest *req){
 		AsyncResponseStream *res = req->beginResponseStream("text/json", RES_BUF_SIZE);
 
-		res->printf("{\"def\":[\n");
-		unsigned count = sch.Count();
+		res->printf("{\"mix\":[\n");
+		unsigned count = mixer.Count();
 		for(unsigned i = 0; i < count; i++){
-			const schedule* data = sch.Get(i);
-			res->printf("[%u,%u,%u,%u,%u]", data->start.week, data->start.sec, data->end.sec, data->m.on, data->m.off);
+			const rule* r = mixer.Get(i);
+			res->printf("[%u,%u,%d,%u,%u]", r->in, r->out, r->rate, r->airmode, r->flag);
 			if(i < count - 1) res->printf(",\n");
 		}
 		res->printf("],");
-
-		int16_t mid = sch.GetModeId();
-		res->printf("\"mid\":%d,\"count\":%u}\n", mid, count);
+		res->printf("\"count\":%u}\n", count);
 
 		res->end();
 		req->send(res);
@@ -314,7 +304,7 @@ void setupServer(AsyncWebServer& server) {
 		unsigned chI = PARAM_GET_INT("i") - 1; // 0 ~ 8
 		unsigned chO = PARAM_GET_INT("o") - 1; // 0 ~ 8
 		signed rate = PARAM_GET_INT("r") - 1; // +-8191
-		unsigned flag = PARAM_GET_INT("f") - 1;
+		unsigned flag = PARAM_GET_INT("f") - 1; // airmode
 
 
 		if(chI >= 9) WERRC(req, 400);
@@ -328,29 +318,28 @@ void setupServer(AsyncWebServer& server) {
 			return;
 		}
 
-		int idx = mixer.Add(rule{chI, chO, rate, flag});
+		int idx = mixer.AddI(chI, chO, rate, flag);
 		req->send(200, "text/plain", String(idx));
 	});
 
 	server.on("/mix/mod", HTTP_GET, [](AsyncWebServerRequest *req){
+		PARAM_CHECK("id");
 		PARAM_CHECK("i");
-		PARAM_CHECK("w");
-		PARAM_CHECK("as");
-		PARAM_CHECK("bs");
-		PARAM_CHECK("on");
-		PARAM_CHECK("of");
+		PARAM_CHECK("o");
+		PARAM_CHECK("r");
+		PARAM_CHECK("f");
 
 		// TODO: check input
-		unsigned i = PARAM_GET_INT("i") - 1;
-		unsigned w = PARAM_GET_INT("w") - 1; // 0~6
-		unsigned as = PARAM_GET_INT("as") - 1; // 0 ~ 86399
-		unsigned bs = PARAM_GET_INT("bs") - 1; // 0 ~ 86399
-		unsigned on = PARAM_GET_INT("on") - 1;
-		unsigned of = PARAM_GET_INT("of") - 1;
+		unsigned i = PARAM_GET_INT("id") - 1;
+		unsigned chI = PARAM_GET_INT("i") - 1; // 0 ~ 8
+		unsigned chO = PARAM_GET_INT("o") - 1; // 0 ~ 8
+		signed rate = PARAM_GET_INT("r") - 1; // +-8191
+		unsigned flag = PARAM_GET_INT("f") - 1; // airmode
 
-		if(w >= 7) WERRC(req, 400);
-		if(as >= 86400) WERRC(req, 400);
-		if(bs >= 86400) WERRC(req, 400);
+		if(chI >= 9) WERRC(req, 400);
+		if(chO >= 9) WERRC(req, 400);
+		if(rate >= 8192 || rate <= -8192) WERRC(req, 400);
+		if(flag >= 16) WERRC(req, 400);
 
 		bool ok = authCheck(req, auth);
 		if (!ok) {
@@ -358,13 +347,13 @@ void setupServer(AsyncWebServer& server) {
 			return;
 		}
 
-		bool ret = sch.Mod(i, daytime{w, as}, daytime{w, bs}, mode{on, of});
+		bool ret = mixer.ModI(i, chI, chO, rate, flag);
 		req->send(200, "text/plain", String(ret));
 	});
 
 	server.on("/mix/rm", HTTP_GET, [](AsyncWebServerRequest *req){
-		PARAM_CHECK("i");
-		unsigned idx = PARAM_GET_INT("i") - 1;
+		PARAM_CHECK("id");
+		unsigned idx = PARAM_GET_INT("id") - 1;
 
 		bool ok = authCheck(req, auth);
 		if (!ok) {
@@ -372,7 +361,7 @@ void setupServer(AsyncWebServer& server) {
 			return;
 		}
 
-		req->send(200, "text/plain", String(sch.Del(idx)));
+		req->send(200, "text/plain", String(mixer.Del(idx)));
 	});
 
 }

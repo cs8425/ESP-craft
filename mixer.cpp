@@ -36,9 +36,11 @@ int Mixer::Add(rule r) {
 }
 
 int Mixer::Add(uint8_t in, uint8_t out, float rate, bool airmode) {
-	rate = rate * 8192;
-	rate = (rate > 0)? rate + 0.5: rate - 0.5;
-	rule r = rule { in, out, int(rate), airmode, 0 };
+	return AddI(in, out, getRateInt(rate), airmode);
+}
+
+int Mixer::AddI(uint8_t in, uint8_t out, int rate, bool airmode) {
+	rule r = rule { in, out, rate, airmode, 0 };
 	return Add(r);
 }
 
@@ -54,9 +56,11 @@ bool Mixer::Mod(uint16_t idx, rule r) {
 }
 
 bool Mixer::Mod(uint16_t idx, uint8_t in, uint8_t out, float rate, bool airmode) {
-	rate = rate * 8192;
-	rate = (rate > 0)? rate + 0.5: rate - 0.5;
-	rule r = rule { in, out, int(rate), airmode, 0 };
+	return ModI(idx, in, out, getRateInt(rate), airmode);
+}
+
+bool Mixer::ModI(uint16_t idx, uint8_t in, uint8_t out, int rate, bool airmode) {
+	rule r = rule { in, out, rate, airmode, 0 };
 	return Mod(idx, r);
 }
 

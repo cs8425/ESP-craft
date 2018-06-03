@@ -119,8 +119,9 @@ class Pinout {
 		int Parse(File* f) {
 			Clear();
 			pin_s d;
+			int i = 0;
 			while(f->readBytes((char*) &d, sizeof(d))) {
-				_pin[i] = d;
+				_pin[i++] = d;
 			}
 
 			f->close();

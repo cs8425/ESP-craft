@@ -2,9 +2,9 @@
 #define __MIXER_HPP_
 
 #include <stdint.h>
-//#include <FS.h>
+#include <FS.h>
 
-//#include "config.h"
+#include "config.h"
 
 #define MAX_RULE_COUNT    32
 
@@ -37,8 +37,10 @@ class Mixer {
 
 		int Add(rule r); // start with 0, -1 >> error
 		int Add(uint8_t in, uint8_t out, float rate, bool airmode = false); // start with 0, -1 >> error
+		int AddI(uint8_t in, uint8_t out, int rate, bool airmode = false);
 		bool Mod(uint16_t idx, rule r);
 		bool Mod(uint16_t idx, uint8_t in, uint8_t out, float rate, bool airmode = false);
+		bool ModI(uint16_t idx, uint8_t in, uint8_t out, int rate, bool airmode = false);
 		bool Del(uint16_t idx);
 		const rule* Get(uint16_t idx);
 		uint16_t Count();
@@ -50,7 +52,7 @@ class Mixer {
 		const int16_t* GetOut();
 
 
-/*		int Load() {
+		int Load() {
 			if (!SPIFFS.exists(MIXER_FILE)) return 1;
 			File f = SPIFFS.open(MIXER_FILE, "r");
 			if (!f) return 1;
@@ -86,11 +88,16 @@ class Mixer {
 
 		void Reset() {
 			SPIFFS.remove(MIXER_FILE);
-		}*/
+		}
 
 		//void defragment(bool full = true, uint16_t idx = 0);
 	private:
 		void defragment(bool full = true, uint16_t idx = 0);
+		static int getRateInt(float rate) {
+			rate = rate * 8192;
+			rate = (rate > 0)? rate + 0.5: rate - 0.5;
+			return int(rate);
+		}
 
 		uint16_t _count;
 		rule _rule[MAX_RULE_COUNT];
