@@ -53,10 +53,10 @@ bool Mixer::Mod(uint16_t idx, rule r) {
 	return true;
 }
 
-bool Mixer::Mod(uint16_t idx, uint8_t in, uint8_t out, float rate) {
+bool Mixer::Mod(uint16_t idx, uint8_t in, uint8_t out, float rate, bool airmode) {
 	rate = rate * 8192;
 	rate = (rate > 0)? rate + 0.5: rate - 0.5;
-	rule r = rule { in, out, int(rate), 0 };
+	rule r = rule { in, out, int(rate), airmode, 0 };
 	return Mod(idx, r);
 }
 
@@ -159,8 +159,8 @@ void Mixer::Calc(int16_t* input) {
 		_out[i] = tmp / 2;
 
 		if (_air[i]) {
-			if (_out[i] > max) max = _out[i];
-			if (_out[i] < min) min = _out[i];
+			if(_out[i] > max) max = _out[i];
+			if(_out[i] < min) min = _out[i];
 		}
 	}
 
@@ -168,12 +168,12 @@ void Mixer::Calc(int16_t* input) {
 	if (range > 1000) {
 		float rate = (float)1000 / range;
 		for (i = 0; i<MAX_OUTPUT_COUNT; i++) {
-			if (_air[i]) _out[i] = rate * _out[i];
+			if(_air[i]) _out[i] = rate * _out[i];
 		}
 	}
 	if (min < 0) {
 		for (i = 0; i<MAX_OUTPUT_COUNT; i++) {
-			if (_air[i]) _out[i] = _out[i] - min;
+			if(_air[i]) _out[i] = _out[i] - min;
 		}
 	}
 }

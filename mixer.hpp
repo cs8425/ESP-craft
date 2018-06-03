@@ -38,7 +38,7 @@ class Mixer {
 		int Add(rule r); // start with 0, -1 >> error
 		int Add(uint8_t in, uint8_t out, float rate, bool airmode = false); // start with 0, -1 >> error
 		bool Mod(uint16_t idx, rule r);
-		bool Mod(uint16_t idx, uint8_t in, uint8_t out, float rate);
+		bool Mod(uint16_t idx, uint8_t in, uint8_t out, float rate, bool airmode = false);
 		bool Del(uint16_t idx);
 		const rule* Get(uint16_t idx);
 		uint16_t Count();

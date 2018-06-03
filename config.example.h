@@ -5,15 +5,13 @@
 
 ////////////////////////////////////////////////////////
 
-//#define OUT_PIN D4
-#define OUT_PIN LED_BUILTIN // GPIO 2
-
-#define OUT_LOW_ACTIVE  1 // 1 >> low active
+#define LED_PIN LED_BUILTIN // GPIO 2
+#define LED_LOW_ACTIVE  1 // 1 >> low active
 
 
 #define WIFI_MODE       WIFI_AP_STA // WIFI_AP, WIFI_STA, WIFI_AP_STA
 
-#define AP_SSID         "esp"
+#define AP_SSID         "esp-drone"
 #define AP_PWD          "Aa123454321aA"
 #define AP_CHANNEL      1 // 1~14
 #define AP_HIDDEN       0
@@ -28,9 +26,10 @@
 #define CONFIG_FILE     "/config"
 #define KEY_FILE        "/key" // raw bytes
 #define MIXER_FILE      "/mixer" // raw bytes
+#define PIN_FILE        "/pin" // raw bytes
 
-
-#define PWR_SLEEP_MS    1 // sleep for power saving
+#define UDP_PORT        57666 // control data port for UDP server
+#define WEB_PORT        8080 // port for web server
 #define RES_BUF_SIZE    536 // buffer size for ResponseStream
 
 #endif

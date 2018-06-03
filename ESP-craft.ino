@@ -21,7 +21,7 @@ Simple WiFi Controlled plane based on esp-01
 
 ADC_MODE(ADC_VCC); // test battery
 
-AsyncWebServer server(80);
+AsyncWebServer server(WEB_PORT);
 
 void setup() {
 	Serial.begin(115200);
@@ -54,33 +54,31 @@ void setup() {
 	}
 	auth.setKey((uint8_t*)config.KEY.c_str());
 
-
-	// set default
-	pinMode(OUT_PIN, OUTPUT);
-
 	// LED for debug
-	pinMode(LED_BUILTIN, OUTPUT);
+	pinMode(LED_PIN, OUTPUT);
 
+
+	// ESP-01
+	// GPIO3	RX
+	// GPIO1	TX
+	// GPIO0	left motor	out_ch0
+	// GPIO2	right motor	out_ch1
 	// load from SPIFFS
 	mixer.Load();
+	if (pwmout.Load() != 0) { // USE GPIO0, GPIO2 as pwm output on ESP-01
+		pwmout.SetDefMotor(0, 0);
+		pwmout.SetDefMotor(2, 1);
+		pwmout.SetFreq(20000, 1000);
+	}
+	pwmout.InitPin();
+
 
 	setupServer(server);
 
 	// for debug
 	server.on("/dump", HTTP_GET, [](AsyncWebServerRequest *req){
 		AsyncResponseStream *res = req->beginResponseStream("text/plain", RES_BUF_SIZE);
-		unsigned count = sch.Count();
-		const mode* m = sch.GetOutput();
-		int16_t mid = sch.GetModeId();
-		res->printf("sch:%d,%u,%u,%u\n", mid, count, m->on, m->off);
 
-		//res->printf("tsk:%u\n", tsk.GetTaskId());
-
-		const log_t* data = &newest_log;
-		res->printf("sen:%d,%d,%d\n", data->temp, data->hum, data->press);
-
-		res->printf("pin:%u\n", pin.GetOutput());
-		res->printf("log:%u\n", logs.Count());
 		res->printf("heap:%u\n", ESP.getFreeHeap());
 		res->printf("url:%s\n", req->url().c_str());
 		res->printf("EspId:%x\n", ESP.getChipId());
@@ -115,18 +113,9 @@ void loop() {
 		uint32_t dt = now_ms - next_ms;
 		next_ms = now_ms + 1000 - dt;
 
-
-		int sid = sch.Update(now);
-		const mode* m = sch.GetOutput();
-		if (sid) {
-			pin.SetMode(m);
-		}
-
-		int o = pin.Update();
-		if (o != -1) {
-			digitalWrite(OUT_PIN, OUT_LOW_ACTIVE - o);
-			digitalWrite(LED_BUILTIN, 1 - o);
-		}
+		static int o = 0;
+		digitalWrite(LED_PIN, LED_LOW_ACTIVE - o);
+		o = 1 - o;
 
 		Serial.print("wifi status: ");
 		Serial.print(WiFi.status());
@@ -166,17 +155,17 @@ void loop() {
 		case 2: // flush
 			Serial.println("flush...");
 			mixer.Save();
+			pwmout.Save();
 			break;
 		case 3: // load
 			Serial.println("load...");
 			mixer.Load();
+			pwmout.Load();
 			break;
 		}
 		ext_cmd = 0;
 	}
 
-	// 0 ~ 255
-	delay(config.PWR_SLEEP); // https://github.com/arendst/Sonoff-Tasmota/wiki/Energy-Saving
 }
 
 void setupServer(AsyncWebServer& server) {

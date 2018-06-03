@@ -2,18 +2,12 @@
 #define __PINOUT_HPP_
 
 #include <stdint.h>
-//#include <FS.h>
+#include <FS.h>
 
-//#include "config.h"
+#include "config.h"
 
 // esp8266 GPIO 0~16
 #define MAX_PIN_COUNT     17
-
-// ESP-01
-// GPIO3	RX
-// GPIO1	TX
-// GPIO0	left motor
-// GPIO2	right motor
 
 
 // TODO: different period/output type for each pin
@@ -36,11 +30,6 @@ class Pinout {
 	public:
 		Pinout() {
 			Clear();
-			if (Load() != 0) { // USE GPIO0, GPIO2 as pwm output on ESP-01
-				SetDefMotor(0);
-				SetDefMotor(2);
-				SetFreq(20000, 1000);
-			}
 		}
 
 		bool Mod(uint16_t idx, pin_s p);
@@ -52,13 +41,25 @@ class Pinout {
 			analogWriteRange(_range);
 		}
 
-		bool SetDefServo(uint16_t idx) {
+		void InitPin() {
+			for(unsigned i=0; i<MAX_PIN_COUNT; i++){
+				const pin_s* p = &(_pin[i]);
+				if (p->en) {
+					pinMode(i, OUTPUT);
+				} else {
+					analogWrite(i, 0);
+				}
+			}
+		}
+
+		bool SetDefServo(uint16_t idx, uint16_t ch) {
 			if (idx >= MAX_PIN_COUNT) {
 				return false;
 			}
 
 			pin_s* p = &(_pin[idx]);
 			p->en = 1;
+			p->ch = ch;
 			p->center = 1500;
 			p->min = 1000;
 			p->max = 2000;
@@ -66,13 +67,14 @@ class Pinout {
 			return true;
 		}
 
-		bool SetDefMotor(uint16_t idx) {
+		bool SetDefMotor(uint16_t idx, uint16_t ch) {
 			if (idx >= MAX_PIN_COUNT) {
 				return false;
 			}
 
 			pin_s* p = &(_pin[idx]);
 			p->en = 1;
+			p->ch = ch;
 			p->center = 0;
 			p->min = 0;
 			p->max = 1000;
@@ -94,17 +96,19 @@ class Pinout {
 			}
 		}
 
-		void Output(int16_t* chdata) { // int16_t* array has MAX_OUTPUT_COUNT, RAE value -500 ~ 500, T1234 value 0 ~ 1000
+		void Output(int16_t* chdata) { // int16_t* array has MAX_OUTPUT_COUNT, value 0 ~ 1000
 			for(unsigned i=0; i<MAX_PIN_COUNT; i++){
 				const pin_s* p = &(_pin[i]);
-				p->en = 0;
-				p->center = 1500;
-				p->min = 1000;
-				p->max = 2000;
+				if (p->en) {
+					int value = chdata[p->ch] + p->center;
+					if(value < p->min) value = p->min;
+					if(value > p->max) value = p->max;
+					analogWrite(i, value);
+				}
 			}
 		}
 
-/*		int Load() {
+		int Load() {
 			if (!SPIFFS.exists(PIN_FILE)) return 1;
 			File f = SPIFFS.open(PIN_FILE, "r");
 			if (!f) return 1;
@@ -138,7 +142,7 @@ class Pinout {
 
 		void Reset() {
 			SPIFFS.remove(MIXER_FILE);
-		}*/
+		}
 	private:
 		pin_s _pin[MAX_PIN_COUNT];
 };
