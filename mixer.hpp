@@ -11,22 +11,6 @@
 #define MAX_INPUT_COUNT   8
 #define MAX_OUTPUT_COUNT  8
 
-enum {
-	INPUT_RC_ROLL = 0,
-	INPUT_RC_PITCH,
-	INPUT_RC_YAW,
-	INPUT_RC_THROTTLE,
-	INPUT_RC_AUX1,
-	INPUT_RC_AUX2,
-	INPUT_RC_AUX3,
-	INPUT_RC_AUX4,
-	INPUT_STABILIZED_ROLL,
-	INPUT_STABILIZED_PITCH,
-	INPUT_STABILIZED_YAW,
-	INPUT_STABILIZED_THROTTLE,
-	INPUT_SOURCE_COUNT
-} inputSource_e;
-
 struct rule {
 	// input ch 0~7
 	unsigned int in : 3;
@@ -52,7 +36,7 @@ class Mixer {
 		Mixer();
 
 		int Add(rule r); // start with 0, -1 >> error
-		int Add(uint8_t in, uint8_t out, float rate); // start with 0, -1 >> error
+		int Add(uint8_t in, uint8_t out, float rate, bool airmode = false); // start with 0, -1 >> error
 		bool Mod(uint16_t idx, rule r);
 		bool Mod(uint16_t idx, uint8_t in, uint8_t out, float rate);
 		bool Del(uint16_t idx);
@@ -61,13 +45,13 @@ class Mixer {
 		void Clear();
 
 		// AERT1234
-		void Calc(int16_t* input); // uint16_t* array has MAX_INPUT_COUNT, RAE value -500 ~ 500, T1234 value 0 ~ 1000
+		void Calc(int16_t* input); // int16_t* array has MAX_INPUT_COUNT, RAE value -500 ~ 500, T1234 value 0 ~ 1000
 		int16_t GetOut(int ch);
 		const int16_t* GetOut();
 
 
 /*		int Load() {
-			if (!SPIFFS.exists(MIXER_FILE)) return 0;
+			if (!SPIFFS.exists(MIXER_FILE)) return 1;
 			File f = SPIFFS.open(MIXER_FILE, "r");
 			if (!f) return 1;
 

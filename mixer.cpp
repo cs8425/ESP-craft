@@ -35,10 +35,10 @@ int Mixer::Add(rule r) {
 	return idx;
 }
 
-int Mixer::Add(uint8_t in, uint8_t out, float rate) {
+int Mixer::Add(uint8_t in, uint8_t out, float rate, bool airmode) {
 	rate = rate * 8192;
 	rate = (rate > 0)? rate + 0.5: rate - 0.5;
-	rule r = rule { in, out, int(rate), 0 };
+	rule r = rule { in, out, int(rate), airmode, 0 };
 	return Add(r);
 }
 
@@ -142,13 +142,39 @@ const int16_t* Mixer::GetOut() {
 
 void Mixer::Calc(int16_t* input) {
 	unsigned i;
-	for(i = 0; i<MAX_OUTPUT_COUNT; i++) {
-		_out[i] = 0;
-	}
+	int32_t _tmp[MAX_OUTPUT_COUNT] = {0};
+	bool _air[MAX_OUTPUT_COUNT] = {0};
+	int16_t max = 0;
+	int16_t min = 0;
+
 	for(i = 0; i<_count; i++) {
 		unsigned iid = _rule[i].in;
 		unsigned oid = _rule[i].out;
-		_out[oid] += (input[iid] * _rule[i].rate) / 8192;
+		_air[oid] = _air[oid] || _rule[i].airmode;
+		_tmp[oid] += input[iid] * _rule[i].rate;
+	}
+	for(i = 0; i<MAX_OUTPUT_COUNT; i++) {
+		int32_t tmp = _tmp[i] / 4096;
+		tmp = (tmp > 0)? tmp+1 : tmp-1;
+		_out[i] = tmp / 2;
+
+		if (_air[i]) {
+			if (_out[i] > max) max = _out[i];
+			if (_out[i] < min) min = _out[i];
+		}
+	}
+
+	int32_t range = max - min;
+	if (range > 1000) {
+		float rate = (float)1000 / range;
+		for (i = 0; i<MAX_OUTPUT_COUNT; i++) {
+			if (_air[i]) _out[i] = rate * _out[i];
+		}
+	}
+	if (min < 0) {
+		for (i = 0; i<MAX_OUTPUT_COUNT; i++) {
+			if (_air[i]) _out[i] = _out[i] - min;
+		}
 	}
 }
 
